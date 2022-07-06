@@ -23,7 +23,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "bme280.h"
+#include "flash_w25.h"
+#include "mcp23s17.h"
+#include "spi_module.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -80,13 +83,13 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
-static void MX_USART1_UART_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_DMA_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_USART1_UART_Init(void);
 void StartTask100ms(void *argument);
 void StartTask1sec(void *argument);
 
@@ -130,7 +133,6 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   MX_SPI1_Init();
-  MX_USART1_UART_Init();
   MX_TIM3_Init();
   MX_ADC1_Init();
   MX_TIM2_Init();
@@ -138,8 +140,13 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM4_Init();
   MX_USB_Device_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_Delay(1);
+  BME280_Detect();
+  BME280_StartMeasurement(Oversampling1, Oversampling1, Oversampling1);
+  FLASH_W25_Identification();
+  SPIMODULE_Init();
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -785,10 +792,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(CS_EN25F80_GPIO_Port, CS_EN25F80_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(CS_NRF8L01_GPIO_Port, CS_NRF8L01_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, CS_FLASH_Pin|CS_MPC41010_Pin|LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, CS_FLASH_Pin|CS_MCP23S17_Pin|LD2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : CS_EN25F80_Pin */
   GPIO_InitStruct.Pin = CS_EN25F80_Pin;
@@ -803,12 +810,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : CS_MCP23S17_Pin */
-  GPIO_InitStruct.Pin = CS_MCP23S17_Pin;
+  /*Configure GPIO pin : CS_NRF8L01_Pin */
+  GPIO_InitStruct.Pin = CS_NRF8L01_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CS_MCP23S17_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(CS_NRF8L01_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB0 */
   GPIO_InitStruct.Pin = GPIO_PIN_0;
@@ -816,8 +823,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CS_FLASH_Pin CS_MPC41010_Pin LD2_Pin */
-  GPIO_InitStruct.Pin = CS_FLASH_Pin|CS_MPC41010_Pin|LD2_Pin;
+  /*Configure GPIO pins : CS_FLASH_Pin CS_MCP23S17_Pin LD2_Pin */
+  GPIO_InitStruct.Pin = CS_FLASH_Pin|CS_MCP23S17_Pin|LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -826,7 +833,8 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+uint8_t LedCtr = 0u;
+bool LedState = 0u;
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartTask100ms */
@@ -842,6 +850,13 @@ void StartTask100ms(void *argument)
   /* Infinite loop */
   for(;;)
   {
+    if( LedCtr == 3u )
+    {
+      SPIMODULE_LedsSetState( LedState );
+      LedState = !LedState;
+      LedCtr++;
+    }
+    LedCtr++;
     osDelay(1);
   }
   /* USER CODE END 5 */
@@ -860,6 +875,7 @@ void StartTask1sec(void *argument)
   /* Infinite loop */
   for(;;)
   {
+    BME280_ReadMeasResult();
     osDelay(1);
   }
   /* USER CODE END StartTask1sec */

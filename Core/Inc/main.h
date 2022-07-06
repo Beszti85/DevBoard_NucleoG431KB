@@ -59,17 +59,14 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define MCP4725_ADDR 0xC4
-#define BME280_ADDR 0xEC
-#define AT24C64_ADDR 0xA0
 #define CS_EN25F80_Pin GPIO_PIN_1
 #define CS_EN25F80_GPIO_Port GPIOF
 #define USART2_TX_Pin GPIO_PIN_2
 #define USART2_TX_GPIO_Port GPIOA
 #define USART2_RX_Pin GPIO_PIN_3
 #define USART2_RX_GPIO_Port GPIOA
-#define CS_MCP23S17_Pin GPIO_PIN_4
-#define CS_MCP23S17_GPIO_Port GPIOA
+#define CS_NRF8L01_Pin GPIO_PIN_4
+#define CS_NRF8L01_GPIO_Port GPIOA
 #define T_SWDIO_Pin GPIO_PIN_13
 #define T_SWDIO_GPIO_Port GPIOA
 #define T_SWCLK_Pin GPIO_PIN_14
@@ -78,8 +75,8 @@ void Error_Handler(void);
 #define I2C_SCL_GPIO_Port GPIOA
 #define CS_FLASH_Pin GPIO_PIN_3
 #define CS_FLASH_GPIO_Port GPIOB
-#define CS_MPC41010_Pin GPIO_PIN_5
-#define CS_MPC41010_GPIO_Port GPIOB
+#define CS_MCP23S17_Pin GPIO_PIN_5
+#define CS_MCP23S17_GPIO_Port GPIOB
 #define I2C_SDA_Pin GPIO_PIN_7
 #define I2C_SDA_GPIO_Port GPIOB
 #define LD2_Pin GPIO_PIN_8
