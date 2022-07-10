@@ -27,6 +27,7 @@
 #include "flash_w25.h"
 #include "mcp23s17.h"
 #include "spi_module.h"
+#include "nrf24l01.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -147,6 +148,7 @@ int main(void)
   BME280_StartMeasurement(Oversampling1, Oversampling1, Oversampling1);
   FLASH_W25_Identification();
   SPIMODULE_Init();
+  NRF24L01_Init();
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -792,10 +794,13 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(CS_EN25F80_GPIO_Port, CS_EN25F80_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CS_NRF8L01_GPIO_Port, CS_NRF8L01_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(CS_NRF24L01_GPIO_Port, CS_NRF24L01_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, CS_FLASH_Pin|CS_MCP23S17_Pin|LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, CS_FLASH_Pin|CS_MCP23S17_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : CS_EN25F80_Pin */
   GPIO_InitStruct.Pin = CS_EN25F80_Pin;
@@ -810,12 +815,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : CS_NRF8L01_Pin */
-  GPIO_InitStruct.Pin = CS_NRF8L01_Pin;
+  /*Configure GPIO pin : CS_NRF24L01_Pin */
+  GPIO_InitStruct.Pin = CS_NRF24L01_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CS_NRF8L01_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(CS_NRF24L01_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB0 */
   GPIO_InitStruct.Pin = GPIO_PIN_0;
