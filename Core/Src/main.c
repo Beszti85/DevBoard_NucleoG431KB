@@ -24,10 +24,11 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "bme280.h"
-#include "flash_w25.h"
 #include "mcp23s17.h"
 #include "spi_module.h"
 #include "nrf24l01.h"
+#include "lcd_char.h"
+#include "flash.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,7 +46,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
- ADC_HandleTypeDef hadc1;
+ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c1;
@@ -75,7 +76,8 @@ const osThreadAttr_t Task1sec_attributes = {
   .stack_size = 128 * 4
 };
 /* USER CODE BEGIN PV */
-
+volatile uint16_t ADC_RawData[6u] = {0u};
+float ADC_Voltage[6u];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -144,11 +146,15 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_Delay(1);
+  // Start PWM
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   BME280_Detect();
   BME280_StartMeasurement(Oversampling1, Oversampling1, Oversampling1);
-  FLASH_W25_Identification();
-  SPIMODULE_Init();
+  FLASH_Identification();
   NRF24L01_Init();
+  // Init LCD
+  LcdInit(LCD_DISP_ON_CURSOR_BLINK);
+  LcdPuts("Hello_MCP23S17", 0, 0);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -240,7 +246,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -599,7 +605,7 @@ static void MX_TIM3_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 500;
+  sConfigOC.Pulse = 400;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
@@ -791,23 +797,23 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CS_EN25F80_GPIO_Port, CS_EN25F80_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(CS_FLASH_GPIO_Port, CS_FLASH_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CS_NRF24L01_GPIO_Port, CS_NRF24L01_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, CS_FLASH_Pin|CS_MCP23S17_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, CSOUT_Pin|CS_MCP23S17_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3|LD2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : CS_EN25F80_Pin */
-  GPIO_InitStruct.Pin = CS_EN25F80_Pin;
+  /*Configure GPIO pin : CS_FLASH_Pin */
+  GPIO_InitStruct.Pin = CS_FLASH_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CS_EN25F80_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(CS_FLASH_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PG10 */
   GPIO_InitStruct.Pin = GPIO_PIN_10;
@@ -822,14 +828,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(CS_NRF24L01_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PB0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : CS_FLASH_Pin CS_MCP23S17_Pin LD2_Pin */
-  GPIO_InitStruct.Pin = CS_FLASH_Pin|CS_MCP23S17_Pin|LD2_Pin;
+  /*Configure GPIO pins : CSOUT_Pin PB3 CS_MCP23S17_Pin LD2_Pin */
+  GPIO_InitStruct.Pin = CSOUT_Pin|GPIO_PIN_3|CS_MCP23S17_Pin|LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -855,9 +855,15 @@ void StartTask100ms(void *argument)
   /* Infinite loop */
   for(;;)
   {
+    // Convert ADC raw data from last running
+    for( uint16_t i = 0u; i < 6u; i++ )
+    {
+      ADC_Voltage[i] = (float)ADC_RawData[i] * 3.3f / 4096.0f;
+    }
+    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&ADC_RawData[0u], 6u);
     if( LedCtr == 3u )
     {
-      SPIMODULE_LedsSetState( LedState );
+      //SPIMODULE_LedsSetState( LedState );
       LedState = !LedState;
       LedCtr++;
     }

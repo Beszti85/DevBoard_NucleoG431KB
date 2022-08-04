@@ -59,22 +59,22 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define CS_EN25F80_Pin GPIO_PIN_1
-#define CS_EN25F80_GPIO_Port GPIOF
+#define CS_FLASH_Pin GPIO_PIN_1
+#define CS_FLASH_GPIO_Port GPIOF
 #define USART2_TX_Pin GPIO_PIN_2
 #define USART2_TX_GPIO_Port GPIOA
 #define USART2_RX_Pin GPIO_PIN_3
 #define USART2_RX_GPIO_Port GPIOA
 #define CS_NRF24L01_Pin GPIO_PIN_4
 #define CS_NRF24L01_GPIO_Port GPIOA
+#define CSOUT_Pin GPIO_PIN_0
+#define CSOUT_GPIO_Port GPIOB
 #define T_SWDIO_Pin GPIO_PIN_13
 #define T_SWDIO_GPIO_Port GPIOA
 #define T_SWCLK_Pin GPIO_PIN_14
 #define T_SWCLK_GPIO_Port GPIOA
 #define I2C_SCL_Pin GPIO_PIN_15
 #define I2C_SCL_GPIO_Port GPIOA
-#define CS_FLASH_Pin GPIO_PIN_3
-#define CS_FLASH_GPIO_Port GPIOB
 #define CS_MCP23S17_Pin GPIO_PIN_5
 #define CS_MCP23S17_GPIO_Port GPIOB
 #define I2C_SDA_Pin GPIO_PIN_7
