@@ -29,6 +29,7 @@
 #include "nrf24l01.h"
 #include "lcd_char.h"
 #include "flash.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -78,6 +79,7 @@ const osThreadAttr_t Task1sec_attributes = {
 /* USER CODE BEGIN PV */
 volatile uint16_t ADC_RawData[6u] = {0u};
 float ADC_Voltage[6u];
+char EspAtBuffer[20u];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -155,6 +157,14 @@ int main(void)
   // Init LCD
   LcdInit(LCD_DISP_ON_CURSOR_BLINK);
   LcdPuts("Hello_MCP23S17", 0, 0);
+  // Init ESP01
+  char src1 [] = "AT\r\n";
+  strncpy(EspAtBuffer, src1, 4);
+  HAL_UART_Transmit( &huart1, EspAtBuffer, 4, 100u);
+  HAL_Delay(100);
+  char src2 [] = "AT+GMR\r\n";
+  strncpy(EspAtBuffer, src2, 8);
+  HAL_UART_Transmit( &huart1, EspAtBuffer, 8, 100u);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -839,7 +849,6 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 uint8_t LedCtr = 0u;
-bool LedState = 0u;
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartTask100ms */
@@ -861,10 +870,9 @@ void StartTask100ms(void *argument)
       ADC_Voltage[i] = (float)ADC_RawData[i] * 3.3f / 4096.0f;
     }
     HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&ADC_RawData[0u], 6u);
-    if( LedCtr == 3u )
+    if( LedCtr == 5u )
     {
-      //SPIMODULE_LedsSetState( LedState );
-      LedState = !LedState;
+      HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
       LedCtr++;
     }
     LedCtr++;
