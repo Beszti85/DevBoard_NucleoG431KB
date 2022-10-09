@@ -61,6 +61,7 @@ TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart1_rx;
 
 /* Definitions for Task100ms */
 osThreadId_t Task100msHandle;
@@ -154,9 +155,10 @@ int main(void)
   BME280_StartMeasurement(Oversampling1, Oversampling1, Oversampling1);
   FLASH_Identification();
   NRF24L01_Init();
+  SPIMODULE_Init(&hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin );
   // Init LCD
-  LcdInit(LCD_DISP_ON_CURSOR_BLINK);
-  LcdPuts("Hello_MCP23S17", 0, 0);
+  //LcdInit(LCD_DISP_ON_CURSOR_BLINK);
+  //LcdPuts("Hello_MCP23S17", 0, 0);
   // Init ESP01
   char src1 [] = "AT\r\n";
   strncpy(EspAtBuffer, src1, 4);
@@ -788,6 +790,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+  /* DMA1_Channel2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
 
 }
 
