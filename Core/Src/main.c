@@ -155,10 +155,10 @@ int main(void)
   BME280_StartMeasurement(Oversampling1, Oversampling1, Oversampling1);
   FLASH_Identification();
   NRF24L01_Init();
-  SPIMODULE_Init(&hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin );
+  //SPIMODULE_Init(&hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin );
   // Init LCD
-  //LcdInit(LCD_DISP_ON_CURSOR_BLINK);
-  //LcdPuts("Hello_MCP23S17", 0, 0);
+  LcdInit_MSP23S17(LCD_DISP_ON_CURSOR_BLINK, &hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin);
+  LcdPuts("Hello_MCP23S17", 0, 0);
   // Init ESP01
   char src1 [] = "AT\r\n";
   strncpy(EspAtBuffer, src1, 4);
