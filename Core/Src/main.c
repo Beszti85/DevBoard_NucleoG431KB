@@ -81,6 +81,14 @@ const osThreadAttr_t Task1sec_attributes = {
 volatile uint16_t ADC_RawData[6u] = {0u};
 float ADC_Voltage[6u];
 char EspAtBuffer[20u];
+
+NRF24L01_Handler_t RFHandler =
+{
+  .ptrHSpi = &hspi1,
+  .portCS  = CS_NRF24L01_GPIO_Port,
+  .pinCS   = CS_NRF24L01_Pin,
+};
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -154,7 +162,7 @@ int main(void)
   BME280_Detect();
   BME280_StartMeasurement(Oversampling1, Oversampling1, Oversampling1);
   FLASH_Identification();
-  NRF24L01_Init();
+  NRF24L01_Init(&RFHandler);
   //SPIMODULE_Init(&hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin );
   // Init LCD
   LcdInit_MSP23S17(LCD_DISP_ON_CURSOR_BLINK, &hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin);
