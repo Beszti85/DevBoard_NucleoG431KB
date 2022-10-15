@@ -19,7 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
-#include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -155,7 +154,6 @@ int main(void)
   MX_DMA_Init();
   MX_TIM1_Init();
   MX_TIM4_Init();
-  MX_USB_Device_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_Delay(1);
