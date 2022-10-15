@@ -67,8 +67,8 @@ void Error_Handler(void);
 #define USART2_RX_GPIO_Port GPIOA
 #define CS_NRF24L01_Pin GPIO_PIN_4
 #define CS_NRF24L01_GPIO_Port GPIOA
-#define CSOUT_Pin GPIO_PIN_0
-#define CSOUT_GPIO_Port GPIOB
+#define CE_NRF24L01_Pin GPIO_PIN_0
+#define CE_NRF24L01_GPIO_Port GPIOB
 #define T_SWDIO_Pin GPIO_PIN_13
 #define T_SWDIO_GPIO_Port GPIOA
 #define T_SWCLK_Pin GPIO_PIN_14

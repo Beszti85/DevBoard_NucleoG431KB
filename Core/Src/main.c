@@ -87,6 +87,8 @@ NRF24L01_Handler_t RFHandler =
   .ptrHSpi = &hspi1,
   .portCS  = CS_NRF24L01_GPIO_Port,
   .pinCS   = CS_NRF24L01_Pin,
+  .portCE  = CE_NRF24L01_GPIO_Port,
+  .pinCE   = CE_NRF24L01_Pin
 };
 
 /* USER CODE END PV */
@@ -826,7 +828,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(CS_NRF24L01_GPIO_Port, CS_NRF24L01_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, CSOUT_Pin|CS_MCP23S17_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, CE_NRF24L01_Pin|CS_MCP23S17_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3|LD2_Pin, GPIO_PIN_RESET);
@@ -851,8 +853,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(CS_NRF24L01_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CSOUT_Pin PB3 CS_MCP23S17_Pin LD2_Pin */
-  GPIO_InitStruct.Pin = CSOUT_Pin|GPIO_PIN_3|CS_MCP23S17_Pin|LD2_Pin;
+  /*Configure GPIO pins : CE_NRF24L01_Pin PB3 CS_MCP23S17_Pin LD2_Pin */
+  GPIO_InitStruct.Pin = CE_NRF24L01_Pin|GPIO_PIN_3|CS_MCP23S17_Pin|LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
