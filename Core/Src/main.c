@@ -90,6 +90,13 @@ NRF24L01_Handler_t RFHandler =
   .pinCE   = CE_NRF24L01_Pin
 };
 
+FLASH_Handler_t FlashHandler =
+{
+  .ptrHSpi = &hspi1,
+  .portCS  = CS_FLASH_GPIO_Port,
+  .pinCS   = CS_FLASH_Pin
+};
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -161,7 +168,7 @@ int main(void)
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   BME280_Detect();
   BME280_StartMeasurement(Oversampling1, Oversampling1, Oversampling1);
-  FLASH_Identification();
+  FLASH_Identification(&FlashHandler);
   NRF24L01_Init(&RFHandler);
   //SPIMODULE_Init(&hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin );
   // Init LCD
