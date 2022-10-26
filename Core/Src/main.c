@@ -79,7 +79,8 @@ const osThreadAttr_t Task1sec_attributes = {
 /* USER CODE BEGIN PV */
 volatile uint16_t ADC_RawData[6u] = {0u};
 float ADC_Voltage[6u];
-char EspAtBuffer[20u];
+char EspAtBuffer[24u];
+char EspRxBuffer[240u];
 
 NRF24L01_Handler_t RFHandler =
 {
@@ -178,10 +179,17 @@ int main(void)
   char src1 [] = "AT\r\n";
   strncpy(EspAtBuffer, src1, 4);
   HAL_UART_Transmit( &huart1, EspAtBuffer, 4, 100u);
+  HAL_UART_Receive( &huart1, EspRxBuffer, 10, 100u);
+  HAL_Delay(100);
+  char src3 [] = "ATE0\r\n";
+  strncpy(EspAtBuffer, src1, 6);
+  HAL_UART_Transmit( &huart1, EspAtBuffer, 4, 100u);
+  HAL_UART_Receive( &huart1, EspRxBuffer, 10, 100u);
   HAL_Delay(100);
   char src2 [] = "AT+GMR\r\n";
   strncpy(EspAtBuffer, src2, 8);
   HAL_UART_Transmit( &huart1, EspAtBuffer, 8, 100u);
+  HAL_UART_Receive( &huart1, EspRxBuffer, 100, 100u);
   /* USER CODE END 2 */
 
   /* Init scheduler */
