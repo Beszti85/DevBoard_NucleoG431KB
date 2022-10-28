@@ -79,7 +79,7 @@ const osThreadAttr_t Task1sec_attributes = {
 /* USER CODE BEGIN PV */
 volatile uint16_t ADC_RawData[6u] = {0u};
 float ADC_Voltage[6u];
-char EspAtBuffer[24u];
+char EspAtBuffer[120u];
 char EspRxBuffer[240u];
 
 NRF24L01_Handler_t RFHandler =
@@ -176,20 +176,28 @@ int main(void)
   LcdInit_MSP23S17(LCD_DISP_ON_CURSOR_BLINK, &hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin);
   LcdPuts("Hello_MCP23S17", 0, 0);
   // Init ESP01
-  char src1 [] = "AT\r\n";
-  strncpy(EspAtBuffer, src1, 4);
-  HAL_UART_Transmit( &huart1, EspAtBuffer, 4, 100u);
-  HAL_UART_Receive( &huart1, EspRxBuffer, 10, 100u);
-  HAL_Delay(100);
-  char src3 [] = "ATE0\r\n";
-  strncpy(EspAtBuffer, src1, 6);
-  HAL_UART_Transmit( &huart1, EspAtBuffer, 4, 100u);
-  HAL_UART_Receive( &huart1, EspRxBuffer, 10, 100u);
-  HAL_Delay(100);
-  char src2 [] = "AT+GMR\r\n";
-  strncpy(EspAtBuffer, src2, 8);
-  HAL_UART_Transmit( &huart1, EspAtBuffer, 8, 100u);
-  HAL_UART_Receive( &huart1, EspRxBuffer, 100, 100u);
+  strncpy(EspAtBuffer, "AT+RST\r\n", 8u);
+  HAL_UART_Transmit( &huart1, EspAtBuffer, 8u, 100u);
+  HAL_UART_Receive( &huart1, EspRxBuffer, 100u, 5000u);
+  HAL_Delay(100u);
+  strncpy(EspAtBuffer, "AT\r\n", 4u);
+  HAL_UART_Transmit( &huart1, EspAtBuffer, 4u, 100u);
+  HAL_UART_Receive( &huart1, EspRxBuffer, 10u, 100u);
+  HAL_Delay(100u);
+#if 0
+  strncpy(EspAtBuffer, "ATE0\r\n", 6u);
+  HAL_UART_Transmit( &huart1, EspAtBuffer, 6u, 100u);
+  HAL_UART_Receive( &huart1, EspRxBuffer, 10u, 100u);
+  HAL_Delay(100u);
+#endif
+  strncpy(EspAtBuffer, "AT+GMR\r\n", 8u);
+  HAL_UART_Transmit( &huart1, EspAtBuffer, 8u, 100u);
+  HAL_UART_Receive( &huart1, EspRxBuffer, 100u, 5000u);
+  HAL_Delay(100u);
+  strncpy(EspAtBuffer, "AT+CWSTATE?\r\n", 13u);
+  HAL_UART_Transmit( &huart1, EspAtBuffer, 13u, 100u);
+  HAL_UART_Receive( &huart1, EspRxBuffer, 100u, 2000u);
+  HAL_Delay(100u);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -816,6 +824,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
+  /* DMAMUX_OVR_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMAMUX_OVR_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMAMUX_OVR_IRQn);
 
 }
 
