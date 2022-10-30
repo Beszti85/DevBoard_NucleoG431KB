@@ -28,6 +28,7 @@
 #include "nrf24l01.h"
 #include "lcd_char.h"
 #include "flash.h"
+#include "esp8266_at.h"
 #include <string.h>
 /* USER CODE END Includes */
 
@@ -42,7 +43,8 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define ESP_UART_DMA_BUFFER_SIZE 1024u
+#define ESP_RX_BUFFER_SIZE       4096u
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -79,8 +81,6 @@ const osThreadAttr_t Task1sec_attributes = {
 /* USER CODE BEGIN PV */
 volatile uint16_t ADC_RawData[6u] = {0u};
 float ADC_Voltage[6u];
-char EspAtBuffer[120u];
-char EspRxBuffer[240u];
 
 NRF24L01_Handler_t RFHandler =
 {
@@ -97,6 +97,15 @@ FLASH_Handler_t FlashHandler =
   .portCS  = CS_FLASH_GPIO_Port,
   .pinCS   = CS_FLASH_Pin
 };
+
+uint8_t EspDmaBuffer[ESP_UART_DMA_BUFFER_SIZE];
+uint8_t EspRxBuffer[ESP_RX_BUFFER_SIZE];
+
+uint16_t oldPos = 0;
+uint16_t newPos = 0;
+
+uint8_t  isOK = 0u;
+bool     ESP_MessageReceived = false;
 
 /* USER CODE END PV */
 
@@ -117,12 +126,63 @@ void StartTask100ms(void *argument);
 void StartTask1sec(void *argument);
 
 /* USER CODE BEGIN PFP */
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+  isOK = 0u;
+  if (huart->Instance == USART1)
+  {
+    oldPos = newPos;  // Update the last position before copying new data
 
+    /* If the data in large and it is about to exceed the buffer size, we have to route it to the start of the buffer
+     * This is to maintain the circular buffer
+     * The old data in the main buffer will be overlapped
+     */
+    if (oldPos+Size > ESP_RX_BUFFER_SIZE)  // If the current position + new data size is greater than the main buffer
+    {
+      uint16_t datatocopy = ESP_RX_BUFFER_SIZE-oldPos;  // find out how much space is left in the main buffer
+      memcpy ((uint8_t *)EspRxBuffer+oldPos, EspDmaBuffer, datatocopy);  // copy data in that remaining space
+
+      oldPos = 0;  // point to the start of the buffer
+      memcpy ((uint8_t *)EspRxBuffer, (uint8_t *)EspDmaBuffer+datatocopy, (Size-datatocopy));  // copy the remaining data
+      newPos = (Size-datatocopy);  // update the position
+    }
+
+    /* if the current position + new data size is less than the main buffer
+     * we will simply copy the data into the buffer and update the position
+     */
+    else
+    {
+      memcpy ((uint8_t *)EspRxBuffer+oldPos, EspDmaBuffer, Size);
+      newPos = Size+oldPos;
+    }
+
+
+    /* start the DMA again */
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, (uint8_t *) EspDmaBuffer, ESP_UART_DMA_BUFFER_SIZE);
+    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+
+  }
+
+  /****************** PROCESS (Little) THE DATA HERE *********************/
+
+  /* Let's say we want to check for the keyword "OK" within our incoming DATA */
+  for (int i=0; i<Size; i++)
+  {
+    if ((EspDmaBuffer[i] == 'O') && (EspDmaBuffer[i+1] == 'K'))
+    {
+      isOK = 1u;
+    }
+  }
+
+  if( isOK == 0u )
+  {
+    ESP_MessageReceived = true;
+  }
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
 /* USER CODE END 0 */
 
 /**
@@ -164,6 +224,8 @@ int main(void)
   MX_TIM4_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  //HAL_UARTEx_ReceiveToIdle_DMA(&huart1, EspDmaBuffer, ESP_UART_DMA_BUFFER_SIZE);
+  //__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
   HAL_Delay(1);
   // Start PWM
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
@@ -173,31 +235,9 @@ int main(void)
   NRF24L01_Init(&RFHandler);
   //SPIMODULE_Init(&hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin );
   // Init LCD
-  LcdInit_MSP23S17(LCD_DISP_ON_CURSOR_BLINK, &hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin);
-  LcdPuts("Hello_MCP23S17", 0, 0);
-  // Init ESP01
-  strncpy(EspAtBuffer, "AT+RST\r\n", 8u);
-  HAL_UART_Transmit( &huart1, EspAtBuffer, 8u, 100u);
-  HAL_UART_Receive( &huart1, EspRxBuffer, 100u, 5000u);
-  HAL_Delay(100u);
-  strncpy(EspAtBuffer, "AT\r\n", 4u);
-  HAL_UART_Transmit( &huart1, EspAtBuffer, 4u, 100u);
-  HAL_UART_Receive( &huart1, EspRxBuffer, 10u, 100u);
-  HAL_Delay(100u);
-#if 0
-  strncpy(EspAtBuffer, "ATE0\r\n", 6u);
-  HAL_UART_Transmit( &huart1, EspAtBuffer, 6u, 100u);
-  HAL_UART_Receive( &huart1, EspRxBuffer, 10u, 100u);
-  HAL_Delay(100u);
-#endif
-  strncpy(EspAtBuffer, "AT+GMR\r\n", 8u);
-  HAL_UART_Transmit( &huart1, EspAtBuffer, 8u, 100u);
-  HAL_UART_Receive( &huart1, EspRxBuffer, 100u, 5000u);
-  HAL_Delay(100u);
-  strncpy(EspAtBuffer, "AT+CWSTATE?\r\n", 13u);
-  HAL_UART_Transmit( &huart1, EspAtBuffer, 13u, 100u);
-  HAL_UART_Receive( &huart1, EspRxBuffer, 100u, 2000u);
-  HAL_Delay(100u);
+  //LcdInit_MSP23S17(LCD_DISP_ON_CURSOR_BLINK, &hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin);
+  //LcdPuts("Hello_MCP23S17", 0, 0);
+  ESP8266_Init(&huart1, EspRxBuffer);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -824,9 +864,6 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
-  /* DMAMUX_OVR_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMAMUX_OVR_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMAMUX_OVR_IRQn);
 
 }
 
