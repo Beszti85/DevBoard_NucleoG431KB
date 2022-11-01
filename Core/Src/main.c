@@ -224,9 +224,7 @@ int main(void)
   MX_TIM4_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  //HAL_UARTEx_ReceiveToIdle_DMA(&huart1, EspDmaBuffer, ESP_UART_DMA_BUFFER_SIZE);
-  //__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
-  HAL_Delay(1);
+  HAL_Delay(1u);
   // Start PWM
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   BME280_Detect();
@@ -235,9 +233,12 @@ int main(void)
   NRF24L01_Init(&RFHandler);
   //SPIMODULE_Init(&hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin );
   // Init LCD
-  //LcdInit_MSP23S17(LCD_DISP_ON_CURSOR_BLINK, &hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin);
-  //LcdPuts("Hello_MCP23S17", 0, 0);
+  LcdInit_MSP23S17(LCD_DISP_ON_CURSOR_BLINK, &hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin);
+  LcdPuts("Hello_MCP23S17", 0, 0);
   ESP8266_Init(&huart1, EspRxBuffer);
+  HAL_Delay(10u);
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, EspDmaBuffer, ESP_UART_DMA_BUFFER_SIZE);
+  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
   /* USER CODE END 2 */
 
   /* Init scheduler */
