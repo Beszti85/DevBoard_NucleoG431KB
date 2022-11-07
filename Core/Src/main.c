@@ -45,6 +45,8 @@
 /* USER CODE BEGIN PM */
 #define ESP_UART_DMA_BUFFER_SIZE 1024u
 #define ESP_RX_BUFFER_SIZE       4096u
+
+#define ESP_EVENT_FLAG_MASK   0x00000001uL
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -64,20 +66,9 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart1_rx;
 
-/* Definitions for Task100ms */
-osThreadId_t Task100msHandle;
-const osThreadAttr_t Task100ms_attributes = {
-  .name = "Task100ms",
-  .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 128 * 4
-};
-/* Definitions for Task1sec */
-osThreadId_t Task1secHandle;
-const osThreadAttr_t Task1sec_attributes = {
-  .name = "Task1sec",
-  .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 128 * 4
-};
+osThreadId Task100msHandle;
+osThreadId Task1secHandle;
+osThreadId Task_EspHandle;
 /* USER CODE BEGIN PV */
 volatile uint16_t ADC_RawData[6u] = {0u};
 float ADC_Voltage[6u];
@@ -122,8 +113,9 @@ static void MX_DMA_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART1_UART_Init(void);
-void StartTask100ms(void *argument);
-void StartTask1sec(void *argument);
+void StartTask100ms(void const * argument);
+void StartTask1sec(void const * argument);
+void StartTask03(void const * argument);
 
 /* USER CODE BEGIN PFP */
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
@@ -131,52 +123,48 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
   isOK = 0u;
   if (huart->Instance == USART1)
   {
-    oldPos = newPos;  // Update the last position before copying new data
-
-    /* If the data in large and it is about to exceed the buffer size, we have to route it to the start of the buffer
-     * This is to maintain the circular buffer
-     * The old data in the main buffer will be overlapped
-     */
-    if (oldPos+Size > ESP_RX_BUFFER_SIZE)  // If the current position + new data size is greater than the main buffer
+    /* Check if it is an OK: dont need to copy, just set the acknowledge flag  */
+    if( strncmp(EspDmaBuffer, "\r\nOK\r\n", 6u) )
     {
-      uint16_t datatocopy = ESP_RX_BUFFER_SIZE-oldPos;  // find out how much space is left in the main buffer
-      memcpy ((uint8_t *)EspRxBuffer+oldPos, EspDmaBuffer, datatocopy);  // copy data in that remaining space
-
-      oldPos = 0;  // point to the start of the buffer
-      memcpy ((uint8_t *)EspRxBuffer, (uint8_t *)EspDmaBuffer+datatocopy, (Size-datatocopy));  // copy the remaining data
-      newPos = (Size-datatocopy);  // update the position
+      isOK = 1u;
     }
-
-    /* if the current position + new data size is less than the main buffer
-     * we will simply copy the data into the buffer and update the position
-     */
     else
     {
-      memcpy ((uint8_t *)EspRxBuffer+oldPos, EspDmaBuffer, Size);
-      newPos = Size+oldPos;
-    }
+      oldPos = newPos;  // Update the last position before copying new data
 
+      /* If the data in large and it is about to exceed the buffer size, we have to route it to the start of the buffer
+       * This is to maintain the circular buffer
+       * The old data in the main buffer will be overlapped
+       */
+      if (oldPos+Size > ESP_RX_BUFFER_SIZE)  // If the current position + new data size is greater than the main buffer
+      {
+        uint16_t datatocopy = ESP_RX_BUFFER_SIZE-oldPos;  // find out how much space is left in the main buffer
+        memcpy ((uint8_t *)EspRxBuffer+oldPos, EspDmaBuffer, datatocopy);  // copy data in that remaining space
+
+        oldPos = 0;  // point to the start of the buffer
+        memcpy ((uint8_t *)EspRxBuffer, (uint8_t *)EspDmaBuffer+datatocopy, (Size-datatocopy));  // copy the remaining data
+        newPos = (Size-datatocopy);  // update the position
+      }
+
+      /* if the current position + new data size is less than the main buffer
+       * we will simply copy the data into the buffer and update the position
+       */
+      else
+      {
+        memcpy ((uint8_t *)EspRxBuffer+oldPos, EspDmaBuffer, Size);
+        newPos = Size+oldPos;
+      }
+    }
 
     /* start the DMA again */
     HAL_UARTEx_ReceiveToIdle_DMA(&huart1, (uint8_t *) EspDmaBuffer, ESP_UART_DMA_BUFFER_SIZE);
     __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 
-  }
-
-  /****************** PROCESS (Little) THE DATA HERE *********************/
-
-  /* Let's say we want to check for the keyword "OK" within our incoming DATA */
-  for (int i=0; i<Size; i++)
-  {
-    if ((EspDmaBuffer[i] == 'O') && (EspDmaBuffer[i+1] == 'K'))
+    if( isOK == 0u )
     {
-      isOK = 1u;
+      ESP_MessageReceived = true;
+      osSignalSet(Task_EspHandle, ESP_EVENT_FLAG_MASK);
     }
-  }
-
-  if( isOK == 0u )
-  {
-    ESP_MessageReceived = true;
   }
 }
 /* USER CODE END PFP */
@@ -241,9 +229,6 @@ int main(void)
   __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
   /* USER CODE END 2 */
 
-  /* Init scheduler */
-  osKernelInitialize();
-
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
@@ -261,19 +246,21 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of Task100ms */
-  Task100msHandle = osThreadNew(StartTask100ms, NULL, &Task100ms_attributes);
+  /* definition and creation of Task100ms */
+  osThreadDef(Task100ms, StartTask100ms, osPriorityNormal, 0, 128);
+  Task100msHandle = osThreadCreate(osThread(Task100ms), NULL);
 
-  /* creation of Task1sec */
-  Task1secHandle = osThreadNew(StartTask1sec, NULL, &Task1sec_attributes);
+  /* definition and creation of Task1sec */
+  osThreadDef(Task1sec, StartTask1sec, osPriorityNormal, 0, 128);
+  Task1secHandle = osThreadCreate(osThread(Task1sec), NULL);
+
+  /* definition and creation of Task_Esp */
+  osThreadDef(Task_Esp, StartTask03, osPriorityLow, 0, 128);
+  Task_EspHandle = osThreadCreate(osThread(Task_Esp), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
-
-  /* USER CODE BEGIN RTOS_EVENTS */
-  /* add events, ... */
-  /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
   osKernelStart();
@@ -935,7 +922,7 @@ uint8_t LedCtr = 0u;
   * @retval None
   */
 /* USER CODE END Header_StartTask100ms */
-void StartTask100ms(void *argument)
+void StartTask100ms(void const * argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
@@ -965,7 +952,7 @@ void StartTask100ms(void *argument)
 * @retval None
 */
 /* USER CODE END Header_StartTask1sec */
-void StartTask1sec(void *argument)
+void StartTask1sec(void const * argument)
 {
   /* USER CODE BEGIN StartTask1sec */
   /* Infinite loop */
@@ -975,6 +962,34 @@ void StartTask1sec(void *argument)
     osDelay(1);
   }
   /* USER CODE END StartTask1sec */
+}
+
+/* USER CODE BEGIN Header_StartTask03 */
+/**
+* @brief Function implementing the Task_Esp thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask03 */
+void StartTask03(void const * argument)
+{
+  /* USER CODE BEGIN StartTask03 */
+  /* Infinite loop */
+  for(;;)
+  {
+    for(;;)
+    {
+      osEvent event = osSignalWait(ESP_EVENT_FLAG_MASK, osWaitForever);
+      if(   (event.status == osEventSignal)
+         && (event.value.signals == ESP_EVENT_FLAG_MASK) )
+      {
+        // Process the incoming data that is not OK
+        ESP8266_AtReportHandler();
+      }
+    }
+    osDelay(1);
+  }
+  /* USER CODE END StartTask03 */
 }
 
 /**
