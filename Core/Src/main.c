@@ -89,14 +89,14 @@ FLASH_Handler_t FlashHandler =
   .pinCS   = CS_FLASH_Pin
 };
 
-uint8_t EspDmaBuffer[ESP_UART_DMA_BUFFER_SIZE];
-uint8_t EspRxBuffer[ESP_RX_BUFFER_SIZE];
+char EspDmaBuffer[ESP_UART_DMA_BUFFER_SIZE];
+char EspRxBuffer[ESP_RX_BUFFER_SIZE];
 
 uint16_t oldPos = 0;
 uint16_t newPos = 0;
 
-uint8_t  isOK = 0u;
-bool     ESP_MessageReceived = false;
+bool  ESP_ResponseOK = 0u;
+bool  ESP_MessageReceived = false;
 
 /* USER CODE END PV */
 
@@ -120,13 +120,13 @@ void StartTask03(void const * argument);
 /* USER CODE BEGIN PFP */
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
-  isOK = 0u;
+  ESP_ResponseOK = false;
   if (huart->Instance == USART1)
   {
     /* Check if it is an OK: dont need to copy, just set the acknowledge flag  */
-    if( strncmp(EspDmaBuffer, "\r\nOK\r\n", 6u) )
+    if( strncmp(EspDmaBuffer, "\r\nOK\r\n", 6) )
     {
-      isOK = 1u;
+      ESP_ResponseOK = true;
     }
     else
     {
@@ -160,7 +160,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
     HAL_UARTEx_ReceiveToIdle_DMA(&huart1, (uint8_t *) EspDmaBuffer, ESP_UART_DMA_BUFFER_SIZE);
     __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 
-    if( isOK == 0u )
+    if( ESP_ResponseOK == false )
     {
       ESP_MessageReceived = true;
       osSignalSet(Task_EspHandle, ESP_EVENT_FLAG_MASK);
@@ -984,7 +984,7 @@ void StartTask03(void const * argument)
          && (event.value.signals == ESP_EVENT_FLAG_MASK) )
       {
         // Process the incoming data that is not OK
-        ESP8266_AtReportHandler();
+        ESP8266_AtReportHandler(EspRxBuffer);
       }
     }
     osDelay(1);
