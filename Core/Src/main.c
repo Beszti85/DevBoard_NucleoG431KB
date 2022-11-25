@@ -22,6 +22,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#define USE_SPI_MODULE (1)
+#define USE_LCD_MODULE (0)
+
 #include "bme280.h"
 #include "mcp23s17.h"
 #include "spi_module.h"
@@ -219,10 +222,14 @@ int main(void)
   BME280_StartMeasurement(Oversampling1, Oversampling1, Oversampling1);
   FLASH_Identification(&FlashHandler);
   NRF24L01_Init(&RFHandler);
-  //SPIMODULE_Init(&hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin );
+#if (USE_SPI_MODULE == 1)
+  SPIMODULE_Init(&hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin );
+#endif
+#if (USE_SPI_LCD == 1)
   // Init LCD
   LcdInit_MSP23S17(LCD_DISP_ON_CURSOR_BLINK, &hspi1, CS_MCP23S17_GPIO_Port, CS_MCP23S17_Pin);
   LcdPuts("Hello_MCP23S17", 0, 0);
+#endif
   ESP8266_Init(&huart1, EspRxBuffer);
   HAL_Delay(10u);
   HAL_UARTEx_ReceiveToIdle_DMA(&huart1, EspDmaBuffer, ESP_UART_DMA_BUFFER_SIZE);
@@ -937,10 +944,10 @@ void StartTask100ms(void const * argument)
     if( LedCtr == 5u )
     {
       HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-      LedCtr++;
+      LedCtr = 0u;
     }
     LedCtr++;
-    osDelay(1);
+    osDelay(100);
   }
   /* USER CODE END 5 */
 }
@@ -952,14 +959,26 @@ void StartTask100ms(void const * argument)
 * @retval None
 */
 /* USER CODE END Header_StartTask1sec */
+uint8_t DispState = 0u;
+
 void StartTask1sec(void const * argument)
 {
   /* USER CODE BEGIN StartTask1sec */
   /* Infinite loop */
   for(;;)
   {
+    if( DispState == 0u)
+    {
+      SPIMODULE_ToogleDisplay(DispState);
+      DispState = 1u;
+    }
+    else
+    {
+      SPIMODULE_ToogleDisplay(DispState);
+      DispState = 0u;
+    }
     BME280_ReadMeasResult();
-    osDelay(1);
+    osDelay(1000);
   }
   /* USER CODE END StartTask1sec */
 }
