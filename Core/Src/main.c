@@ -33,9 +33,12 @@
 #include "flash.h"
 #include "esp8266_at.h"
 #include <string.h>
+#include "max7219.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
+typedef StaticTask_t osStaticThreadDef_t;
+typedef StaticEventGroup_t osStaticEventGroupDef_t;
 /* USER CODE BEGIN PTD */
 
 /* USER CODE END PTD */
@@ -46,8 +49,8 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define ESP_UART_DMA_BUFFER_SIZE 1024u
-#define ESP_RX_BUFFER_SIZE       4096u
+#define ESP_UART_DMA_BUFFER_SIZE 512u
+#define ESP_RX_BUFFER_SIZE       2048u
 
 #define ESP_EVENT_FLAG_MASK   0x00000001uL
 /* USER CODE END PM */
@@ -69,9 +72,50 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart1_rx;
 
-osThreadId Task100msHandle;
-osThreadId Task1secHandle;
-osThreadId Task_EspHandle;
+/* Definitions for Task100ms */
+osThreadId_t Task100msHandle;
+uint32_t Task100msBuffer[ 128 ];
+osStaticThreadDef_t Task100msControlBlock;
+const osThreadAttr_t Task100ms_attributes = {
+  .name = "Task100ms",
+  .stack_mem = &Task100msBuffer[0],
+  .stack_size = sizeof(Task100msBuffer),
+  .cb_mem = &Task100msControlBlock,
+  .cb_size = sizeof(Task100msControlBlock),
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for Task1sec */
+osThreadId_t Task1secHandle;
+uint32_t Task1secBuffer[ 128 ];
+osStaticThreadDef_t Task1secControlBlock;
+const osThreadAttr_t Task1sec_attributes = {
+  .name = "Task1sec",
+  .stack_mem = &Task1secBuffer[0],
+  .stack_size = sizeof(Task1secBuffer),
+  .cb_mem = &Task1secControlBlock,
+  .cb_size = sizeof(Task1secControlBlock),
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for Task_Esp */
+osThreadId_t Task_EspHandle;
+uint32_t Task_EspBuffer[ 128 ];
+osStaticThreadDef_t Task_EspControlBlock;
+const osThreadAttr_t Task_Esp_attributes = {
+  .name = "Task_Esp",
+  .stack_mem = &Task_EspBuffer[0],
+  .stack_size = sizeof(Task_EspBuffer),
+  .cb_mem = &Task_EspControlBlock,
+  .cb_size = sizeof(Task_EspControlBlock),
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for eventEspReceive */
+osEventFlagsId_t eventEspReceiveHandle;
+osStaticEventGroupDef_t myEvent01ControlBlock;
+const osEventFlagsAttr_t eventEspReceive_attributes = {
+  .name = "eventEspReceive",
+  .cb_mem = &myEvent01ControlBlock,
+  .cb_size = sizeof(myEvent01ControlBlock),
+};
 /* USER CODE BEGIN PV */
 volatile uint16_t ADC_RawData[6u] = {0u};
 float ADC_Voltage[6u];
@@ -92,6 +136,11 @@ FLASH_Handler_t FlashHandler =
   .pinCS   = CS_FLASH_Pin
 };
 
+MAX7219_Handler_t LedDriverHandler =
+{
+  .ptrHSpi = &hspi1,
+};
+
 char EspDmaBuffer[ESP_UART_DMA_BUFFER_SIZE];
 char EspRxBuffer[ESP_RX_BUFFER_SIZE];
 
@@ -106,19 +155,19 @@ bool  ESP_MessageReceived = false;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_USART2_UART_Init(void);
+static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM2_Init(void);
-static void MX_DMA_Init(void);
+static void MX_USART2_UART_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART1_UART_Init(void);
-void StartTask100ms(void const * argument);
-void StartTask1sec(void const * argument);
-void StartTask03(void const * argument);
+void StartTask100ms(void *argument);
+void StartTask1sec(void *argument);
+void StartTask03(void *argument);
 
 /* USER CODE BEGIN PFP */
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
@@ -166,7 +215,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
     if( ESP_ResponseOK == false )
     {
       ESP_MessageReceived = true;
-      osSignalSet(Task_EspHandle, ESP_EVENT_FLAG_MASK);
+      osEventFlagsSet(eventEspReceiveHandle, ESP_EVENT_FLAG_MASK);
     }
   }
 }
@@ -204,13 +253,13 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART2_UART_Init();
+  MX_DMA_Init();
   MX_I2C1_Init();
   MX_SPI1_Init();
   MX_TIM3_Init();
   MX_ADC1_Init();
   MX_TIM2_Init();
-  MX_DMA_Init();
+  MX_USART2_UART_Init();
   MX_TIM1_Init();
   MX_TIM4_Init();
   MX_USART1_UART_Init();
@@ -236,6 +285,9 @@ int main(void)
   __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
   /* USER CODE END 2 */
 
+  /* Init scheduler */
+  osKernelInitialize();
+
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
@@ -253,21 +305,26 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* definition and creation of Task100ms */
-  osThreadDef(Task100ms, StartTask100ms, osPriorityNormal, 0, 128);
-  Task100msHandle = osThreadCreate(osThread(Task100ms), NULL);
+  /* creation of Task100ms */
+  Task100msHandle = osThreadNew(StartTask100ms, NULL, &Task100ms_attributes);
 
-  /* definition and creation of Task1sec */
-  osThreadDef(Task1sec, StartTask1sec, osPriorityNormal, 0, 128);
-  Task1secHandle = osThreadCreate(osThread(Task1sec), NULL);
+  /* creation of Task1sec */
+  Task1secHandle = osThreadNew(StartTask1sec, NULL, &Task1sec_attributes);
 
-  /* definition and creation of Task_Esp */
-  osThreadDef(Task_Esp, StartTask03, osPriorityLow, 0, 128);
-  Task_EspHandle = osThreadCreate(osThread(Task_Esp), NULL);
+  /* creation of Task_Esp */
+  Task_EspHandle = osThreadNew(StartTask03, NULL, &Task_Esp_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
+
+  /* Create the event(s) */
+  /* creation of eventEspReceive */
+  eventEspReceiveHandle = osEventFlagsNew(&eventEspReceive_attributes);
+
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
+  /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
   osKernelStart();
@@ -929,7 +986,7 @@ uint8_t LedCtr = 0u;
   * @retval None
   */
 /* USER CODE END Header_StartTask100ms */
-void StartTask100ms(void const * argument)
+void StartTask100ms(void *argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
@@ -959,14 +1016,13 @@ void StartTask100ms(void const * argument)
 * @retval None
 */
 /* USER CODE END Header_StartTask1sec */
-uint8_t DispState = 0u;
-
-void StartTask1sec(void const * argument)
+void StartTask1sec(void *argument)
 {
   /* USER CODE BEGIN StartTask1sec */
   /* Infinite loop */
   for(;;)
   {
+#if 00
     if( DispState == 0u)
     {
       SPIMODULE_ToogleDisplay(DispState);
@@ -977,6 +1033,7 @@ void StartTask1sec(void const * argument)
       SPIMODULE_ToogleDisplay(DispState);
       DispState = 0u;
     }
+#endif
     BME280_ReadMeasResult();
     osDelay(1000);
   }
@@ -990,21 +1047,20 @@ void StartTask1sec(void const * argument)
 * @retval None
 */
 /* USER CODE END Header_StartTask03 */
-void StartTask03(void const * argument)
+void StartTask03(void *argument)
 {
   /* USER CODE BEGIN StartTask03 */
+  /* USER CODE BEGIN StartTaskAsync */
+  uint32_t eventFlags = 0u;
   /* Infinite loop */
   for(;;)
   {
-    for(;;)
+    eventFlags = osEventFlagsWait(eventEspReceiveHandle, ESP_EVENT_FLAG_MASK, osFlagsWaitAny, osWaitForever);
+    if( eventFlags == ESP_EVENT_FLAG_MASK )
     {
-      osEvent event = osSignalWait(ESP_EVENT_FLAG_MASK, osWaitForever);
-      if(   (event.status == osEventSignal)
-         && (event.value.signals == ESP_EVENT_FLAG_MASK) )
-      {
-        // Process the incoming data that is not OK
-        ESP8266_AtReportHandler(EspRxBuffer);
-      }
+      // Process the incoming data that is not OK
+      ESP8266_AtReportHandler(EspRxBuffer);
+      osEventFlagsClear(eventEspReceiveHandle, ESP_EVENT_FLAG_MASK);
     }
     osDelay(1);
   }

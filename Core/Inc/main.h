@@ -81,8 +81,10 @@ void Error_Handler(void);
 #define I2C_SDA_GPIO_Port GPIOB
 #define LD2_Pin GPIO_PIN_8
 #define LD2_GPIO_Port GPIOB
-/* USER CODE BEGIN Private defines */
 
+/* USER CODE BEGIN Private defines */
+#define LCD_LINES         4u
+#define LCD_DISP_LENGTH  20u
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
